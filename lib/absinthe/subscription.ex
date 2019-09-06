@@ -107,32 +107,26 @@ defmodule Absinthe.Subscription do
 
   @doc false
   def subscribe(pubsub, field_key, doc_id, doc) do
+    store_module = pubsub |> store_module
     registry = pubsub |> registry_name
 
-    {:ok, _} = Registry.register(registry, field_key, {doc_id, doc})
-    {:ok, _} = Registry.register(registry, {self(), doc_id}, field_key)
+    {:ok, _} = store_module.add_subscription(registry, field_key, doc_id, doc)
   end
 
   @doc false
   def unsubscribe(pubsub, doc_id) do
+    store_module = pubsub |> store_module
     registry = pubsub |> registry_name
-    self = self()
 
-    for {^self, field_key} <- Registry.lookup(registry, {self, doc_id}) do
-      Registry.unregister_match(registry, field_key, {doc_id, :_})
-    end
-
-    Registry.unregister(registry, {self, doc_id})
-    :ok
+    store_module.remove_subscriptions(registry, doc_id)
   end
 
   @doc false
   def get(pubsub, key) do
-    pubsub
-    |> registry_name
-    |> Registry.lookup(key)
-    |> Enum.map(&elem(&1, 1))
-    |> Map.new()
+    store_module = pubsub |> store_module
+    registry = pubsub |> registry_name
+
+    store_module.lookup_by_key(registry, key)
   end
 
   @doc false
@@ -141,17 +135,30 @@ defmodule Absinthe.Subscription do
   end
 
   @doc false
+  def store_module(pubsub) do
+    if Kernel.function_exported?(pubsub, :store, 0) do
+      pubsub.store
+    else
+      Absinthe.Subscription.RegistryStore
+    end
+  end
+
+  @doc false
   def publish_remote(pubsub, mutation_result, subscribed_fields) do
+    store_module = pubsub |> store_module
+
     {:ok, pool_size} =
       pubsub
       |> registry_name
-      |> Registry.meta(:pool_size)
+      |> store_module.pool_size
 
-    shard = :erlang.phash2(mutation_result, pool_size)
+    if pool_size > 0 do
+      shard = :erlang.phash2(mutation_result, pool_size)
 
-    proxy_topic = Subscription.Proxy.topic(shard)
+      proxy_topic = Subscription.Proxy.topic(shard)
 
-    :ok = pubsub.publish_mutation(proxy_topic, mutation_result, subscribed_fields)
+      :ok = pubsub.publish_mutation(proxy_topic, mutation_result, subscribed_fields)
+    end
   end
 
   ## Middleware callback

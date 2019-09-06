@@ -72,5 +72,10 @@ defmodule Absinthe.Subscription.Pubsub do
   the newly resolved data. The broadcast should be limited to the current node 
   only.
   """
-  @callback publish_subscription(topic :: binary, data :: map) :: term
+  @callback publish_subscription(topic :: binary, data :: map, context :: map) :: term
+
+  @doc """
+  Return the storage module.
+  """
+  @callback store() :: module
 end

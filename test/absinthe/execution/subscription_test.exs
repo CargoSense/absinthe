@@ -6,6 +6,10 @@ defmodule Absinthe.Execution.SubscriptionTest do
   defmodule PubSub do
     @behaviour Absinthe.Subscription.Pubsub
 
+    def store() do
+      Absinthe.Subscription.RegistryStore
+    end
+
     def start_link() do
       Registry.start_link(keys: :unique, name: __MODULE__)
     end
@@ -19,7 +23,7 @@ defmodule Absinthe.Execution.SubscriptionTest do
       :ok
     end
 
-    def publish_subscription(topic, data) do
+    def publish_subscription(topic, data, _context) do
       message = %{
         topic: topic,
         event: "subscription:data",

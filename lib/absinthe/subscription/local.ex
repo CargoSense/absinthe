@@ -68,7 +68,7 @@ defmodule Absinthe.Subscription.Local do
         Data: #{inspect(data)}
         """)
 
-        :ok = pubsub.publish_subscription(topic, data)
+        :ok = pubsub.publish_subscription(topic, data, doc.execution.context)
       rescue
         e ->
           BatchResolver.pipeline_error(e, System.stacktrace())
