@@ -111,6 +111,11 @@ defmodule Absinthe.Blueprint.Schema do
     build_types(rest, [type | stack], buff)
   end
 
+  defp build_types([{:extend, identifier} | rest], [schema | _] = stack, buff) do
+    type = Enum.find(schema.type_definitions, &(&1.identifier == identifier))
+    build_types(rest, [type | stack], [:extend | buff])
+  end
+
   defp build_types([{:import_fields, criterion} | rest], [obj | stack], buff) do
     build_types(rest, [push(obj, :imports, criterion) | stack], buff)
   end
@@ -151,12 +156,17 @@ defmodule Absinthe.Blueprint.Schema do
 
   defp build_types([{:sdl, sdl_definitions} | rest], [schema | stack], buff) do
     # TODO: Handle directives, etc
-    build_types(rest, [concat(schema, :type_definitions, sdl_definitions) | stack], buff)
+    build_types(rest, [push(schema, :type_definitions, sdl_definitions) | stack], buff)
   end
 
   defp build_types([{:locations, locations} | rest], [directive | stack], buff) do
     directive = Map.update!(directive, :locations, &(locations ++ &1))
     build_types(rest, [directive | stack], buff)
+  end
+
+  defp build_types([{:types, types} | rest], [union | stack], buff) do
+    union = Map.update!(union, :types, &(types ++ &1))
+    build_types(rest, [union | stack], buff)
   end
 
   defp build_types([{attr, value} | rest], [entity | stack], buff) do
@@ -186,7 +196,8 @@ defmodule Absinthe.Blueprint.Schema do
 
   defp build_types([:close | rest], [%Schema.ObjectTypeDefinition{} = obj, schema | stack], buff) do
     obj = Map.update!(obj, :fields, &Enum.reverse/1)
-    build_types(rest, [push(schema, :type_definitions, obj) | stack], buff)
+    {schema, buff} = modify(schema, :type_definitions, obj, buff)
+    build_types(rest, [schema | stack], buff)
   end
 
   defp build_types(
@@ -195,7 +206,8 @@ defmodule Absinthe.Blueprint.Schema do
          buff
        ) do
     obj = Map.update!(obj, :fields, &Enum.reverse/1)
-    build_types(rest, [push(schema, :type_definitions, obj) | stack], buff)
+    {schema, buff} = modify(schema, :type_definitions, obj, buff)
+    build_types(rest, [schema | stack], buff)
   end
 
   defp build_types(
@@ -204,25 +216,25 @@ defmodule Absinthe.Blueprint.Schema do
          buff
        ) do
     iface = Map.update!(iface, :fields, &Enum.reverse/1)
-    build_types(rest, [push(schema, :type_definitions, iface) | stack], buff)
+    {schema, buff} = modify(schema, :type_definitions, iface, buff)
+    build_types(rest, [schema | stack], buff)
   end
 
   defp build_types([:close | rest], [%Schema.UnionTypeDefinition{} = union, schema | stack], buff) do
-    build_types(rest, [push(schema, :type_definitions, union) | stack], buff)
+    {schema, buff} = modify(schema, :type_definitions, union, buff)
+    build_types(rest, [schema | stack], buff)
   end
 
   defp build_types([:close | rest], [%Schema.DirectiveDefinition{} = dir, schema | stack], buff) do
     build_types(rest, [push(schema, :directive_definitions, dir) | stack], buff)
   end
 
-  @simple_close [
-    Schema.ScalarTypeDefinition,
-    Schema.EnumTypeDefinition
-  ]
+  defp build_types([:close | rest], [%Schema.ScalarTypeDefinition{} = type, schema | stack], buff) do
+    build_types(rest, [push(schema, :type_definitions, type) | stack], buff)
+  end
 
-  defp build_types([:close | rest], [%module{} = type, schema | stack], buff)
-       when module in @simple_close do
-    schema = push(schema, :type_definitions, type)
+  defp build_types([:close | rest], [%Schema.EnumTypeDefinition{} = type, schema | stack], buff) do
+    {schema, buff} = modify(schema, :type_definitions, type, buff)
     build_types(rest, [schema | stack], buff)
   end
 
@@ -231,12 +243,32 @@ defmodule Absinthe.Blueprint.Schema do
     build_types(rest, [bp], buff)
   end
 
+  def modify(entity, key, val, [:extend | buff]) do
+    {replace(entity, key, val), buff}
+  end
+
+  def modify(entity, key, val, buff) do
+    {push(entity, key, val), buff}
+  end
+
+  defp push(entity, key, value) when is_list(value) do
+    Map.update!(entity, key, &(&1 ++ value))
+  end
+
   defp push(entity, key, value) do
     Map.update!(entity, key, &[value | &1])
   end
 
-  defp concat(entity, key, value) do
-    Map.update!(entity, key, &(&1 ++ value))
+  defp replace(entity, key, %{identifier: identifier} = type) do
+    new_value =
+      entity
+      |> Map.get(key)
+      |> Enum.map(fn
+        %{identifier: ^identifier} -> type
+        other -> other
+      end)
+
+    %{entity | key => new_value}
   end
 
   defp update_private(existing_private, private) do

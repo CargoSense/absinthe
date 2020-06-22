@@ -28,8 +28,7 @@ defmodule Absinthe.Schema.Notation do
     Module.register_attribute(__CALLER__.module, :absinthe_blueprint, accumulate: true)
     Module.register_attribute(__CALLER__.module, :absinthe_desc, accumulate: true)
     put_attr(__CALLER__.module, %Absinthe.Blueprint{schema: __CALLER__.module})
-    Module.put_attribute(__CALLER__.module, :absinthe_scope_stack, [:schema])
-    Module.put_attribute(__CALLER__.module, :absinthe_scope_stack_stash, [])
+    put_scope_stack(__CALLER__.module, [:schema])
 
     quote do
       import Absinthe.Resolution.Helpers,
@@ -1154,6 +1153,44 @@ defmodule Absinthe.Schema.Notation do
     put_attr(__CALLER__.module, {:import_fields, {source_criteria, opts}})
   end
 
+  @doc """
+  Extend another type
+
+  ## Example
+  ```
+  object :person do
+    field :name, :string
+  end
+
+  extend :person do
+    field :age, :integer
+  end
+  ```
+
+  This results in a `Person` object which contains two fields, `name` and `age`.
+
+  A limited set of types can be extended:
+  * `object`
+  * `input_object`
+  * `enum`
+  * `interface`
+  * `union`
+  """
+  @placement {:extend, [toplevel: true]}
+  defmacro extend(identifier, do: block) do
+    type = extendable!(__CALLER__.module, identifier)
+
+    put_attr(__CALLER__.module, {:extend, identifier})
+
+    stack = get_scope_stack(__CALLER__.module)
+    put_scope_stack(__CALLER__.module, [type | stack])
+
+    [
+      block,
+      quote(do: unquote(__MODULE__).close_scope())
+    ]
+  end
+
   @placement {:import_types, [toplevel: true]}
   @doc """
   Import types from another module
@@ -1468,7 +1505,9 @@ defmodule Absinthe.Schema.Notation do
   @doc false
   defmacro close_scope() do
     put_attr(__CALLER__.module, :close)
-    pop_stack(__CALLER__.module, :absinthe_scope_stack)
+
+    [_ | scope] = get_scope_stack(__CALLER__.module)
+    put_scope_stack(__CALLER__.module, scope)
   end
 
   def put_reference(attrs, env) do
@@ -1651,6 +1690,14 @@ defmodule Absinthe.Schema.Notation do
   def put_desc(module, ref) do
     Module.put_attribute(module, :absinthe_desc, {ref, Module.get_attribute(module, :desc)})
     Module.put_attribute(module, :desc, nil)
+  end
+
+  defp get_scope_stack(module) do
+    Module.get_attribute(module, :absinthe_scope_stack)
+  end
+
+  defp put_scope_stack(module, stack) do
+    Module.put_attribute(module, :absinthe_scope_stack, stack)
   end
 
   def noop(_desc) do
@@ -1837,14 +1884,34 @@ defmodule Absinthe.Schema.Notation do
     end)
   end
 
-  @doc false
+  @extendable [
+    Schema.ObjectTypeDefinition,
+    Schema.EnumTypeDefinition,
+    Schema.InputObjectTypeDefinition,
+    Schema.UnionTypeDefinition,
+    Schema.InterfaceTypeDefinition
+  ]
+  defp extendable!(module, identifier) do
+    module
+    |> Module.get_attribute(:absinthe_blueprint)
+    |> Enum.find(fn
+      {_, %{identifier: ^identifier}} -> true
+      _ -> false
+    end)
+    |> case do
+      {_, %type{}} when type in @extendable -> @scope_map[type]
+      {_, %type{}} -> raise __MODULE__.Error, error_msg({:no_extend, @scope_map[type]})
+      nil -> raise __MODULE__.Error, error_msg({:not_found, identifier})
+    end
+  end
+
   # Ensure the provided operation can be recorded in the current environment,
   # in the current scope context
-  def recordable!(env, usage, placement) do
-    [scope | _] = Module.get_attribute(env.module, :absinthe_scope_stack)
+  defp recordable!(env, usage, placement) do
+    [scope | _] = get_scope_stack(env.module)
 
     unless recordable?(placement, scope) do
-      raise Absinthe.Schema.Notation.Error, invalid_message(placement, usage)
+      raise Absinthe.Schema.Notation.Error, error_msg(placement, usage)
     end
 
     env
@@ -1854,16 +1921,24 @@ defmodule Absinthe.Schema.Notation do
   defp recordable?([toplevel: true], scope), do: scope == :schema
   defp recordable?([toplevel: false], scope), do: scope != :schema
 
-  defp invalid_message([under: under], usage) do
+  defp error_msg([under: under], usage) do
     allowed = under |> Enum.map(&"`#{&1}`") |> Enum.join(", ")
     "Invalid schema notation: `#{usage}` must only be used within #{allowed}"
   end
 
-  defp invalid_message([toplevel: true], usage) do
+  defp error_msg([toplevel: true], usage) do
     "Invalid schema notation: `#{usage}` must only be used toplevel"
   end
 
-  defp invalid_message([toplevel: false], usage) do
+  defp error_msg([toplevel: false], usage) do
     "Invalid schema notation: `#{usage}` must not be used toplevel"
+  end
+
+  defp error_msg({:not_found, identifier}) do
+    "Can't extend `#{identifier}` because it doesn't exist"
+  end
+
+  defp error_msg({:no_extend, identifier}) do
+    "Can't extend a `#{identifier}`"
   end
 end
