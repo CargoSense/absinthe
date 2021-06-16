@@ -1,17 +1,14 @@
-defmodule Absinthe.Phase.Document.MissingVariables do
+defmodule Absinthe.Phase.Document.Arguments.FillDefaults do
   @moduledoc false
 
-  # Fills out missing arguments and input object fields.
+  # Fills out missing arguments and input object fields with default value.
   #
   # Filling out means inserting a stubbed `Input.Argument` or `Input.Field` struct.
   #
-  # Only those arguments which are non null and / or have a default value are filled
-  # out.
-  #
-  # If an argument or input object field is non null and missing, it is marked invalid
+  # Only those default values which are non null are used to fill out.
 
   use Absinthe.Phase
-  alias Absinthe.{Blueprint, Type}
+  alias Absinthe.Blueprint
 
   @spec run(Blueprint.t(), Keyword.t()) :: {:ok, Blueprint.t()}
   def run(input, _options \\ []) do
@@ -34,24 +31,11 @@ defmodule Absinthe.Phase.Document.MissingVariables do
 
   defp handle_node(node), do: node
 
-  defp handle_defaults(node, schema_node) do
-    case schema_node do
-      %{default_value: val} when not is_nil(val) ->
-        fill_default(node, val)
-
-      %{deprecation: %{}} ->
-        node
-
-      %{type: %Type.NonNull{}} ->
-        node |> flag_invalid(:missing)
-
-      _ ->
-        node
-    end
-  end
-
-  defp fill_default(%{input_value: input} = node, val) do
+  defp handle_defaults(%{input_value: input} = node, %{default_value: val})
+       when not is_nil(val) do
     input = %{input | data: val, normalized: %Blueprint.Input.Generated{by: __MODULE__}}
     %{node | input_value: input}
   end
+
+  defp handle_defaults(node, _), do: node
 end

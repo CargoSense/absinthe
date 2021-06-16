@@ -203,4 +203,25 @@ defmodule Absinthe.Execution.Arguments.InputObjectTest do
       run(@graphql, @schema, variables: %{"contact" => %{"mail" => "bubba@joe.com"}})
     )
   end
+
+  @graphql """
+  query ($name: String) {
+    company(name: $name)
+  }
+  """
+  @tag skip: true
+  test "return nil when default_value is nil for simple input" do
+    assert_data(
+      %{"company" => nil},
+      run(
+        @graphql,
+        @schema,
+        variables: %{}
+      )
+    )
+  end
+
+  # TODO: test nil as default for other types
+  # TODO: test nil as default for lists
+  # TODO: test nil as default for complex objects
 end

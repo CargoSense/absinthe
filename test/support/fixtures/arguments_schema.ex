@@ -175,5 +175,17 @@ defmodule Absinthe.Fixtures.ArgumentsSchema do
     field :raising_thing, :string do
       arg :name, :input_name_raising
     end
+
+    field :company, :string do
+      arg :name, :string, default_value: nil
+
+      resolve fn
+        %{name: name}, _ ->
+          {:ok, name}
+
+        _args, _ ->
+          {:error, "could not find your default nil arg"}
+      end
+    end
   end
 end

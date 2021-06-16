@@ -78,8 +78,9 @@ defmodule Absinthe.Pipeline do
       Phase.Document.Arguments.CoerceEnums,
       Phase.Document.Arguments.CoerceLists,
       {Phase.Document.Arguments.Parse, options},
-      Phase.Document.MissingVariables,
-      Phase.Document.MissingLiterals,
+      Phase.Document.Arguments.BuildMissingNodes,
+      Phase.Document.Arguments.FillDefaults,
+      Phase.Document.Arguments.FlagMissing,
       Phase.Document.Arguments.FlagInvalid,
       # Validate Full Document
       Phase.Document.Validation.KnownDirectives,
