@@ -61,6 +61,12 @@ defmodule Absinthe.MiddlewareTest do
         end
       end
 
+      field :returns_nil_error, :secret_object do
+        resolve fn _, _, _ ->
+          {:error, nil}
+        end
+      end
+
       field :from_context, :string do
         middleware fn res, _ ->
           %{res | context: %{value: "yooooo"}}
@@ -135,6 +141,22 @@ defmodule Absinthe.MiddlewareTest do
                locations: [%{column: 16, line: 1}],
                message: "unauthorized",
                path: ["public", "email"]
+             }
+           ] == errors
+  end
+
+  test "query returns an error with a nil error message" do
+    doc = """
+    { returns_nil_error { key } }
+    """
+
+    assert {:ok, %{errors: errors}} = Absinthe.run(doc, __MODULE__.Schema)
+
+    assert [
+             %{
+               locations: [%{column: 3, line: 1}],
+               message: "",
+               path: ["returns_nil_error"]
              }
            ] == errors
   end

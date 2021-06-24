@@ -269,6 +269,10 @@ defmodule Absinthe.Resolution do
     %{res | state: :resolved, errors: [error_keyword]}
   end
 
+  def put_result(res, {:error, nil}) do
+    put_result(res, {:error, ""})
+  end
+
   def put_result(res, {:error, errors}) do
     %{res | state: :resolved, errors: List.wrap(errors)}
   end
