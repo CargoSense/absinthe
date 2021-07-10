@@ -114,8 +114,6 @@ defmodule Absinthe.Phase.Document.Validation.ScalarLeafs do
   """
   @spec required_subselection_message(String.t(), String.t()) :: String.t()
   def required_subselection_message(field_name, type_name) do
-    ~s(Field "#{field_name}" of type "#{type_name}" must have a selection of subfields. Did you mean "#{
-      field_name
-    } { ... }"?)
+    ~s(Field "#{field_name}" of type "#{type_name}" must have a selection of subfields. Did you mean "#{field_name} { ... }"?)
   end
 end

@@ -138,9 +138,7 @@ defmodule Absinthe.Phase.Document.Complexity.Analysis do
 
     Defined at:
 
-      #{field.schema_node.__reference__.location.file}:#{
-      field.schema_node.__reference__.location.line
-    }
+      #{field.schema_node.__reference__.location.file}:#{field.schema_node.__reference__.location.line}
 
     Got value:
 

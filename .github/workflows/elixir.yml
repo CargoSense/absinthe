@@ -14,11 +14,11 @@ jobs:
     strategy:
       matrix:
         elixir:
-          - '1.10'
           - '1.11'
+          - '1.12'
         otp:
-          - '22'
           - '23'
+          - '24'
 
     steps:
     - name: Checkout

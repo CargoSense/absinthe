@@ -67,7 +67,12 @@ defmodule Absinthe.Phase.Schema.TypeImports do
   @dialyzer {:nowarn_function, [ensure_compiled: 1]}
   defp ensure_compiled(module) do
     if function_exported?(Code, :ensure_compiled!, 1) do
-      {:module, Code.ensure_compiled!(module)}
+      try do
+        {:module, Code.ensure_compiled!(module)}
+      rescue
+        e ->
+          {:error, e}
+      end
     else
       Code.ensure_compiled(module)
     end
@@ -76,9 +81,16 @@ defmodule Absinthe.Phase.Schema.TypeImports do
   # Generate an error when loading module fails
   @spec error(module :: module(), error :: :embedded | :badfile | :nofile | :on_load_failure) ::
           Absinthe.Phase.Error.t()
+  defp error(_module, %{message: message}) do
+    %Absinthe.Phase.Error{
+      message: message,
+      phase: __MODULE__
+    }
+  end
+
   defp error(module, reason) do
     %Absinthe.Phase.Error{
-      message: "Could not load module `#{module}`. It returned reason: `#{reason}`.",
+      message: "could not load module #{inspect(module)} due to reason #{inspect(reason)}",
       phase: __MODULE__
     }
   end

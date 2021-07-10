@@ -255,7 +255,7 @@ defmodule Absinthe.Schema.Notation.ImportTest do
     test "returns error" do
       assert_schema_error("unknown_import_schema", [
         %Absinthe.Phase.Error{
-          message: "Could not load module `Elixir.Test.Unknown`. It returned reason: `nofile`.",
+          message: "could not load module Test.Unknown due to reason :nofile",
           phase: Absinthe.Phase.Schema.TypeImports
         }
       ])

@@ -100,8 +100,6 @@ defmodule Absinthe.Phase.Document.Arguments.VariableTypesMatch do
         op -> "In operation `#{op}, variable"
       end
 
-    "#{start} `#{Blueprint.Input.inspect(variable)}` of type `#{var_type}` found as input to argument of type `#{
-      arg_type
-    }`."
+    "#{start} `#{Blueprint.Input.inspect(variable)}` of type `#{var_type}` found as input to argument of type `#{arg_type}`."
   end
 end

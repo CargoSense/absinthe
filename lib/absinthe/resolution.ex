@@ -224,9 +224,7 @@ defmodule Absinthe.Resolution do
 
           Defined at:
 
-              #{res.definition.schema_node.__reference__.location.file}:#{
-            res.definition.schema_node.__reference__.location.line
-          }
+              #{res.definition.schema_node.__reference__.location.file}:#{res.definition.schema_node.__reference__.location.line}
 
           Info: #{inspect(res)}
           """
@@ -400,9 +398,7 @@ defmodule Absinthe.Resolution do
 
     Defined at:
 
-        #{field.schema_node.__reference__.location.file}:#{
-      field.schema_node.__reference__.location.line
-    }
+        #{field.schema_node.__reference__.location.file}:#{field.schema_node.__reference__.location.line}
 
     Resolving on:
 
