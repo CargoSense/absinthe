@@ -263,6 +263,19 @@ defmodule Absinthe.Resolution.Helpers do
     `20`. By passing a callback function to `dataloader/2` we can ensure that
     the value will fall nicely between 0 and 20.
 
+    If you have defined a
+    [custom batch query](https://hexdocs.pm/dataloader/Dataloader.Ecto.html#module-custom-batch-queries),
+    you can instead return a `Map` with `:batch` key to specify the `batch_key` of `Dataloader.load/4` /
+    `Dataloader.get/4` and an `:item` key to specify `item_key` argument of `Dataloader.get/4`.
+
+    ```
+    # ...
+    resolve dataloader(Posts, fn user, _args, _info ->
+      %{batch: {{:one, Post}, %{}}, item: [post_count: user]}
+    end)
+    # ...
+    ```
+
     ## Options
 
     - `:args` default: `%{}`. Any arguments you want to always pass into the
