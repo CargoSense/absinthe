@@ -12,3 +12,4 @@ missing_rules.rb
 .DS_Store
 /priv/plts/*.plt
 /priv/plts/*.plt.hash
+.vscode/

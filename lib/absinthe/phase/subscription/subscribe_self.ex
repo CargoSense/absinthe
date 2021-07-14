@@ -23,10 +23,14 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
 
     with {:ok, config} <- get_config(field, context, blueprint) do
       field_keys = get_field_keys(field, config)
-      subscription_id = get_subscription_id(config, blueprint, options)
+      context_id = get_context_id(config)
+      document_id = get_document_id(config, blueprint, options)
 
-      for field_key <- field_keys,
-          do: Absinthe.Subscription.subscribe(pubsub, field_key, subscription_id, blueprint)
+      subscription_id = subscription_id(context_id, document_id)
+
+      for field_key <- field_keys do
+        Absinthe.Subscription.subscribe(pubsub, blueprint, field_key, context_id, subscription_id)
+      end
 
       {:replace, blueprint,
        [
@@ -137,10 +141,7 @@ defmodule Absinthe.Phase.Subscription.SubscribeSelf do
     end
   end
 
-  defp get_subscription_id(config, blueprint, options) do
-    context_id = get_context_id(config)
-    document_id = get_document_id(config, blueprint, options)
-
+  defp subscription_id(context_id, document_id) do
     "__absinthe__:doc:#{context_id}:#{document_id}"
   end
 

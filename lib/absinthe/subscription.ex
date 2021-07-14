@@ -107,24 +107,27 @@ defmodule Absinthe.Subscription do
   defp fetch_fields(_, _), do: []
 
   @doc false
-  def subscribe(pubsub, field_key, doc_id, doc) do
-    registry = pubsub |> registry_name
+  def subscribe(pubsub, doc, field_key, context_id, subscription_id) do
+    dup_registry = pubsub |> registry_name(:duplicate)
+    uniq_registry = pubsub |> registry_name(:unique)
 
     doc_value = {
-      doc_id,
+      subscription_id,
+      context_id,
       %{
         initial_phases: PipelineSerializer.pack(doc.initial_phases),
         source: doc.source
       }
     }
 
-    {:ok, _} = Registry.register(registry, field_key, doc_value)
-    {:ok, _} = Registry.register(registry, {self(), doc_id}, field_key)
+    _ = Registry.register(uniq_registry, {self(), context_id}, doc.execution.context)
+    {:ok, _} = Registry.register(dup_registry, field_key, doc_value)
+    {:ok, _} = Registry.register(dup_registry, {self(), subscription_id}, field_key)
   end
 
   @doc false
   def unsubscribe(pubsub, doc_id) do
-    registry = pubsub |> registry_name
+    registry = pubsub |> registry_name(:duplicate)
     self = self()
 
     for {^self, field_key} <- Registry.lookup(registry, {self, doc_id}) do
@@ -137,27 +140,42 @@ defmodule Absinthe.Subscription do
 
   @doc false
   def get(pubsub, key) do
-    pubsub
-    |> registry_name
+    dup_registry = pubsub |> registry_name(:duplicate)
+    uniq_registry = pubsub |> registry_name(:unique)
+
+    dup_registry
     |> Registry.lookup(key)
     |> Enum.map(fn match ->
-      {_, {doc_id, doc}} = match
-      doc = Map.update!(doc, :initial_phases, &PipelineSerializer.unpack/1)
+      {pid, {doc_id, context_id, doc}} = match
+      [{_, context}] = Registry.lookup(uniq_registry, {pid, context_id})
+
+      doc =
+        Map.update!(doc, :initial_phases, fn phases ->
+          phases
+          |> PipelineSerializer.unpack()
+          |> Enum.map(fn
+            {phase, opts} ->
+              {phase, Keyword.put(opts, :context, context)}
+
+            phase ->
+              phase
+          end)
+        end)
 
       {doc_id, doc}
     end)
   end
 
   @doc false
-  def registry_name(pubsub) do
-    Module.concat([pubsub, :Registry])
+  def registry_name(pubsub, type) do
+    Module.concat([pubsub, :Registry, type])
   end
 
   @doc false
   def publish_remote(pubsub, mutation_result, subscribed_fields) do
     {:ok, pool_size} =
       pubsub
-      |> registry_name
+      |> registry_name(:unique)
       |> Registry.meta(:pool_size)
 
     shard = :erlang.phash2(mutation_result, pool_size)
@@ -182,7 +200,7 @@ defmodule Absinthe.Subscription do
   @doc false
   def extract_pubsub(context) do
     with {:ok, pubsub} <- Map.fetch(context, :pubsub),
-         pid when is_pid(pid) <- Process.whereis(registry_name(pubsub)) do
+         pid when is_pid(pid) <- Process.whereis(registry_name(pubsub, :unique)) do
       {:ok, pubsub}
     else
       _ -> :error

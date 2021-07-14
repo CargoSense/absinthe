@@ -4,6 +4,9 @@ defmodule Absinthe.Subscription.PipelineSerializer do
 
   The purpose of this logic is saving memory by deduplicating repeating options - (ETS
   backed registry stores them flat in the memory).
+
+  It also strips the context out of the options list. This value needs to be
+  re-populated from another key.
   """
 
   alias Absinthe.{Phase, Pipeline}
@@ -21,9 +24,13 @@ defmodule Absinthe.Subscription.PipelineSerializer do
     {packed_pipeline, options_reverse_map} =
       pipeline
       |> List.flatten()
+      |> Enum.map(&remove_context/1)
       |> Enum.map_reduce(%{}, &maybe_pack_phase/2)
 
-    options_map = Map.new(options_reverse_map, fn {options, label} -> {label, options} end)
+    options_map =
+      Map.new(options_reverse_map, fn {options, label} ->
+        {label, options}
+      end)
 
     {:packed, packed_pipeline, options_map}
   end
@@ -41,6 +48,14 @@ defmodule Absinthe.Subscription.PipelineSerializer do
 
   def unpack([_ | _] = pipeline) do
     pipeline
+  end
+
+  defp remove_context({phase, opts}) do
+    {phase, Keyword.delete(opts, :context)}
+  end
+
+  defp remove_context(phase) do
+    phase
   end
 
   defp maybe_pack_phase({phase, options}, options_reverse_map) do

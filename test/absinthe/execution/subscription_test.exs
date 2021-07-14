@@ -3,40 +3,6 @@ defmodule Absinthe.Execution.SubscriptionTest do
 
   import ExUnit.CaptureLog
 
-  defmodule PubSub do
-    @behaviour Absinthe.Subscription.Pubsub
-
-    def start_link() do
-      Registry.start_link(keys: :unique, name: __MODULE__)
-    end
-
-    def node_name() do
-      node()
-    end
-
-    def subscribe(topic) do
-      Registry.register(__MODULE__, topic, [])
-      :ok
-    end
-
-    def publish_subscription(topic, data) do
-      message = %{
-        topic: topic,
-        event: "subscription:data",
-        result: data
-      }
-
-      Registry.dispatch(__MODULE__, topic, fn entries ->
-        for {pid, _} <- entries, do: send(pid, {:broadcast, message})
-      end)
-    end
-
-    def publish_mutation(_proxy_topic, _mutation_result, _subscribed_fields) do
-      # this pubsub is local and doesn't support clusters
-      :ok
-    end
-  end
-
   defmodule Schema do
     use Absinthe.Schema
 
@@ -47,6 +13,15 @@ defmodule Absinthe.Execution.SubscriptionTest do
     object :user do
       field :id, :id
       field :name, :string
+
+      field :email, :string do
+        resolve fn
+          _, _, %{context: %{admin: true}} ->
+            {:ok, "foo@example.com"}
+          _, _, _ ->
+            {:error, "unauthorized"}
+        end
+      end
 
       field :group, :group do
         resolve fn user, _, %{context: %{test_pid: pid}} ->
@@ -145,8 +120,8 @@ defmodule Absinthe.Execution.SubscriptionTest do
   end
 
   setup_all do
-    {:ok, _} = PubSub.start_link()
-    {:ok, _} = Absinthe.Subscription.start_link(PubSub)
+    {:ok, _} = start_supervised(PubSub)
+    {:ok, _} = start_supervised({Absinthe.Subscription, [PubSub]})
     :ok
   end
 
@@ -391,31 +366,6 @@ defmodule Absinthe.Execution.SubscriptionTest do
       end)
 
     assert String.contains?(error_log, "boom")
-  end
-
-  @tag :pending
-  test "different subscription docs are batched together" do
-    opts = [context: %{test_pid: self()}]
-
-    assert {:ok, %{"subscribed" => doc1}} =
-             run_subscription("subscription { user { group { name } id} }", Schema, opts)
-
-    # different docs required for test, otherwise they get deduplicated from the start
-    assert {:ok, %{"subscribed" => doc2}} =
-             run_subscription("subscription { user { group { name } id name} }", Schema, opts)
-
-    user = %{id: "1", name: "Alicia", group: %{name: "Elixir Users"}}
-
-    Absinthe.Subscription.publish(PubSub, user, user: ["*", user.id])
-
-    assert_receive({:broadcast, %{topic: ^doc1, result: %{data: _}}})
-    assert_receive({:broadcast, %{topic: ^doc2, result: %{data: %{"user" => user}}}})
-
-    assert user["group"]["name"] == "Elixir Users"
-
-    # we should get this just once due to batching
-    assert_receive(:batch_get_group)
-    refute_receive(:batch_get_group)
   end
 
   test "subscription docs with different contexts don't leak context" do
