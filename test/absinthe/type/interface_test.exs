@@ -271,4 +271,49 @@ defmodule Absinthe.Type.InterfaceTest do
   test "works even when resolve_type returns nil" do
     assert_data(%{"namedThing" => %{}}, run(@graphql, Schema))
   end
+
+  defmodule NestedInterfacesSchema do
+    use Absinthe.Schema
+
+    interface :root do
+      field :root, :string
+    end
+
+    interface :intermediate do
+      field :root, :string
+      field :intermediate, :string
+
+      interface :root
+    end
+
+    # Name starts with Z to order it to the back of the list of types
+    object :z_child do
+      field :root, :string
+      field :intermediate, :string
+      field :child, :string
+
+      interface :root
+      interface :intermediate
+
+      is_type_of fn _entry -> true end
+    end
+
+    query do
+      field :root, :root do
+        resolve fn _, _, _ -> {:ok, %{}} end
+      end
+    end
+  end
+
+  @graphql """
+  query GetRoot {
+    root {
+      __typename
+    }
+  }
+  """
+
+  test "resolved type of nested interfaces" do
+    assert_data(%{"root" => %{"__typename" => "ZChild"}}, run(@graphql, NestedInterfacesSchema))
+  end
 end

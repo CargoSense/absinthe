@@ -102,7 +102,9 @@ defmodule Absinthe.Type.Interface do
       end
     else
       type_name =
-        Enum.find(implementors, fn type ->
+        implementors
+        |> Enum.filter(&match?(%Type.Object{}, &1))
+        |> Enum.find(fn type ->
           Absinthe.Type.function(type, :is_type_of).(obj)
         end)
 
